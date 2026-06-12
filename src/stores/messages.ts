@@ -16,6 +16,9 @@ export const useMessagesStore = defineStore('messages', () => {
   // Per-conversation pagination state
   const convState = ref<Record<number, ConvState>>({})
 
+  // Non-critical server error detail shown as an in-dialog banner (no client_msg_id)
+  const globalError = ref<string | null>(null)
+
   const maxId = computed<number>(() => {
     const ids = Object.keys(byId.value).map(Number)
     return ids.length > 0 ? Math.max(...ids) : 0
@@ -93,6 +96,8 @@ export const useMessagesStore = defineStore('messages', () => {
 
   function resendPending() {
     for (const msg of Object.values(optimistic.value)) {
+      // Failed messages are excluded from automatic resend; user retries them manually
+      if (msg.failed) continue
       const payload: Record<string, unknown> = {
         conversation_id: msg.conversation_id,
         text: msg.text,
@@ -104,6 +109,42 @@ export const useMessagesStore = defineStore('messages', () => {
       }
       send({ type: 'message.send', payload })
     }
+  }
+
+  /** Mark a pending message as failed with the server-supplied detail. */
+  function markFailed(client_msg_id: string, detail: string) {
+    const msg = optimistic.value[client_msg_id]
+    if (!msg) return
+    optimistic.value[client_msg_id] = { ...msg, failed: true, error_detail: detail }
+  }
+
+  /** Reset a failed message to pending and resend it (same client_msg_id). */
+  function retryMessage(client_msg_id: string) {
+    const msg = optimistic.value[client_msg_id]
+    if (!msg || !msg.failed) return
+    // Remove failed / error_detail by spreading without them
+    const retried: OptimisticMessage = { ...msg, failed: undefined, error_detail: undefined }
+    delete retried.failed
+    delete retried.error_detail
+    optimistic.value[client_msg_id] = retried
+    const payload: Record<string, unknown> = {
+      conversation_id: msg.conversation_id,
+      text: msg.text,
+      kind: msg.kind,
+      client_msg_id: msg.client_msg_id,
+    }
+    if (msg.ppv_price !== null) {
+      payload.ppv_price = parseFloat(msg.ppv_price)
+    }
+    send({ type: 'message.send', payload })
+  }
+
+  function setGlobalError(detail: string) {
+    globalError.value = detail
+  }
+
+  function clearGlobalError() {
+    globalError.value = null
   }
 
   function clearConversation(conversationId: number) {
@@ -119,6 +160,7 @@ export const useMessagesStore = defineStore('messages', () => {
     byId,
     optimistic,
     convState,
+    globalError,
     maxId,
     getMessages,
     hasMore,
@@ -129,6 +171,10 @@ export const useMessagesStore = defineStore('messages', () => {
     mergeSync,
     addOptimistic,
     resendPending,
+    markFailed,
+    retryMessage,
+    setGlobalError,
+    clearGlobalError,
     clearConversation,
   }
 })

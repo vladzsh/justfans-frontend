@@ -9,7 +9,7 @@ import { connect, disconnect, on, off, setHeartbeatSeconds } from '@/services/ws
 import { startTicker } from '@/composables/useTicker'
 import { api } from '@/services/api'
 import WsIndicator from '@/components/WsIndicator.vue'
-import type { MessageNewPayload, ConversationReadPayload, ChatterStatus, SyncResponse } from '@/types/contracts'
+import type { MessageNewPayload, ConversationReadPayload, ChatterStatus, SyncResponse, WsErrorPayload } from '@/types/contracts'
 
 const authStore = useAuthStore()
 const conversationsStore = useConversationsStore()
@@ -62,10 +62,22 @@ function handleMonitorUpdate(payload: unknown) {
   monitorStore.applyUpdate(payload as ChatterStatus)
 }
 
+function handleWsError(payload: unknown) {
+  const { detail, client_msg_id } = payload as WsErrorPayload
+  if (client_msg_id) {
+    // Mark the specific optimistic message as failed; exclude it from auto-resend
+    messagesStore.markFailed(client_msg_id, detail)
+  } else {
+    // No message context — show a dismissible banner in the active dialog
+    messagesStore.setGlobalError(detail)
+  }
+}
+
 on('connected', handleConnected)
 on('message.new', handleMessageNew)
 on('conversation.read', handleConversationRead)
 on('monitor.update', handleMonitorUpdate)
+on('error', handleWsError)
 
 watch(
   () => authStore.user,
@@ -88,6 +100,7 @@ onUnmounted(() => {
   off('message.new', handleMessageNew)
   off('conversation.read', handleConversationRead)
   off('monitor.update', handleMonitorUpdate)
+  off('error', handleWsError)
   stopTicker()
 })
 </script>

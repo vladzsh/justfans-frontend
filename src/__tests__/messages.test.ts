@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useMessagesStore } from '@/stores/messages'
+import { send } from '@/services/ws'
 import type { Message } from '@/types/contracts'
 
 // Prevent actual API calls from the store's async actions
@@ -110,5 +111,83 @@ describe('messages store — dedup and ordering', () => {
     store.mergeSync([makeMessage(1, 1), makeMessage(2, 2), makeMessage(3, 1)])
     expect(store.getMessages(1).length).toBe(2)
     expect(store.getMessages(2).length).toBe(1)
+  })
+})
+
+describe('messages store — failed state and resend exclusion', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.mocked(send).mockClear()
+  })
+
+  function makeOptimistic(clientId: string) {
+    return {
+      client_msg_id: clientId,
+      conversation_id: 1,
+      sender: 'chatter' as const,
+      kind: 'text' as const,
+      text: `msg ${clientId}`,
+      ppv_price: null,
+      created_at: new Date().toISOString(),
+      pending: true as const,
+    }
+  }
+
+  it('markFailed sets failed flag and error_detail on the optimistic message', () => {
+    const store = useMessagesStore()
+    store.addOptimistic(makeOptimistic('id-1'))
+
+    store.markFailed('id-1', 'Permission denied')
+
+    expect(store.optimistic['id-1'].failed).toBe(true)
+    expect(store.optimistic['id-1'].error_detail).toBe('Permission denied')
+  })
+
+  it('markFailed is a no-op for unknown client_msg_id', () => {
+    const store = useMessagesStore()
+    expect(() => store.markFailed('non-existent', 'err')).not.toThrow()
+  })
+
+  it('resendPending skips failed messages and only sends pending ones', () => {
+    const store = useMessagesStore()
+    store.addOptimistic(makeOptimistic('pending-1'))
+    store.addOptimistic(makeOptimistic('failed-1'))
+    store.markFailed('failed-1', 'Bad request')
+
+    store.resendPending()
+
+    expect(vi.mocked(send)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(send)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({ client_msg_id: 'pending-1' }),
+      }),
+    )
+  })
+
+  it('resendPending sends all messages when none are failed', () => {
+    const store = useMessagesStore()
+    store.addOptimistic(makeOptimistic('p-1'))
+    store.addOptimistic(makeOptimistic('p-2'))
+
+    store.resendPending()
+
+    expect(vi.mocked(send)).toHaveBeenCalledTimes(2)
+  })
+
+  it('retryMessage resets failed status and resends the message', () => {
+    const store = useMessagesStore()
+    store.addOptimistic(makeOptimistic('retry-1'))
+    store.markFailed('retry-1', 'Some error')
+    expect(store.optimistic['retry-1'].failed).toBe(true)
+
+    store.retryMessage('retry-1')
+
+    expect(store.optimistic['retry-1'].failed).toBeUndefined()
+    expect(store.optimistic['retry-1'].error_detail).toBeUndefined()
+    expect(vi.mocked(send)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({ client_msg_id: 'retry-1' }),
+      }),
+    )
   })
 })

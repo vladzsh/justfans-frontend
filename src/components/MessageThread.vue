@@ -21,6 +21,14 @@ function isMessage(m: Message | OptimisticMessage): m is Message {
   return !('pending' in m)
 }
 
+function isFailed(m: Message | OptimisticMessage): m is OptimisticMessage & { failed: true } {
+  return 'pending' in m && !!(m as OptimisticMessage).failed
+}
+
+function retryFailed(m: OptimisticMessage) {
+  messagesStore.retryMessage(m.client_msg_id)
+}
+
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
 }
@@ -99,6 +107,11 @@ onMounted(() => {
       </button>
     </div>
 
+    <div v-if="messagesStore.globalError" class="error-banner" role="alert">
+      <span class="error-banner-text">{{ messagesStore.globalError }}</span>
+      <button class="error-banner-dismiss" @click="messagesStore.clearGlobalError()">×</button>
+    </div>
+
     <div class="thread-messages" ref="scrollEl" @scroll="handleScroll">
       <div v-if="canLoadMore" class="load-more-row">
         <button class="btn-load-more" :disabled="loadingMore" @click="loadOlder">
@@ -118,16 +131,22 @@ onMounted(() => {
             'msg-bubble--chatter': msg.sender === 'chatter',
             'msg-bubble--fan': msg.sender === 'fan',
             'msg-bubble--ppv': msg.kind === 'ppv',
-            'msg-bubble--pending': !isMessage(msg),
+            'msg-bubble--pending': !isMessage(msg) && !isFailed(msg),
+            'msg-bubble--failed': isFailed(msg),
           }"
+          :title="isFailed(msg) ? 'Click to retry' : undefined"
+          @click="isFailed(msg) ? retryFailed(msg as OptimisticMessage) : undefined"
         >
           <div v-if="msg.kind === 'ppv'" class="ppv-badge">
             💎 PPV · {{ msg.ppv_price }}$
           </div>
           <p class="msg-text">{{ msg.text }}</p>
+          <span v-if="isFailed(msg)" class="msg-error-detail">
+            ❌ {{ (msg as OptimisticMessage).error_detail }}
+          </span>
           <span class="msg-time">
             {{ formatTime(msg.created_at) }}
-            <span v-if="!isMessage(msg)" class="msg-pending-indicator">⏳</span>
+            <span v-if="!isMessage(msg) && !isFailed(msg)" class="msg-pending-indicator">⏳</span>
           </span>
         </div>
       </div>
@@ -286,5 +305,56 @@ onMounted(() => {
 
 .msg-pending-indicator {
   margin-left: 2px;
+}
+
+.msg-bubble--failed {
+  background: var(--error-bg, #3a1a1a);
+  border: 1px solid var(--error-border, #7f2a2a);
+  color: var(--text-primary);
+  cursor: pointer;
+  opacity: 1;
+}
+
+.msg-bubble--failed:hover {
+  border-color: var(--error-hover, #c94040);
+}
+
+.msg-error-detail {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--error-text, #e57373);
+  margin-top: 0.25rem;
+}
+
+.error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: var(--error-bg, #3a1a1a);
+  border-bottom: 1px solid var(--error-border, #7f2a2a);
+  color: var(--error-text, #e57373);
+  font-size: 0.875rem;
+  flex-shrink: 0;
+}
+
+.error-banner-text {
+  flex: 1;
+}
+
+.error-banner-dismiss {
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--error-text, #e57373);
+  background: none;
+  border: none;
+  padding: 0 0.25rem;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.error-banner-dismiss:hover {
+  opacity: 1;
 }
 </style>

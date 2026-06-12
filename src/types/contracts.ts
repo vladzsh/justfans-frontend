@@ -59,6 +59,10 @@ export interface OptimisticMessage {
   ppv_price: string | null
   created_at: string
   pending: true
+  /** Set by the server `error` event when the message was rejected. */
+  failed?: true
+  /** Human-readable rejection detail from the server. */
+  error_detail?: string
 }
 
 export interface WaitingDialog {
@@ -99,6 +103,8 @@ export interface ConversationReadPayload {
 export interface WsErrorPayload {
   code: string
   detail: string
+  /** Present when the error is tied to a specific outbound message. */
+  client_msg_id?: string
 }
 
 // WS client→server events
