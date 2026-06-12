@@ -15,20 +15,17 @@ import { wsStatus } from '@/services/ws'
 
 <style scoped>
 .ws-indicator {
-  position: fixed;
-  bottom: 1rem;
-  right: 1rem;
   display: flex;
   align-items: center;
   gap: 0.375rem;
-  padding: 0.375rem 0.75rem;
-  background: var(--bg-secondary);
+  padding: 0.25rem 0.625rem;
+  background: var(--bg-primary);
   border: 1px solid var(--border);
   border-radius: 20px;
   font-size: 0.75rem;
   color: var(--text-secondary);
-  z-index: 100;
   transition: all 0.2s;
+  height: fit-content;
 }
 
 .ws-dot {

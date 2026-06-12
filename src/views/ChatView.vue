@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useConversationsStore } from '@/stores/conversations'
 import ConversationList from '@/components/ConversationList.vue'
 import MessageThread from '@/components/MessageThread.vue'
+import WsIndicator from '@/components/WsIndicator.vue'
 
 const authStore = useAuthStore()
 const conversationsStore = useConversationsStore()
@@ -23,6 +24,7 @@ async function handleLogout() {
     <div class="chat-header">
       <span class="chat-header-title">JustFans CRM</span>
       <div class="chat-header-right">
+        <WsIndicator />
         <span class="user-info">{{ authStore.user?.display_name }}</span>
         <button class="btn-logout" @click="handleLogout">Выйти</button>
       </div>

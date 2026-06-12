@@ -3,6 +3,7 @@ import { onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useMonitorStore } from '@/stores/monitor'
 import MonitorTable from '@/components/MonitorTable.vue'
+import WsIndicator from '@/components/WsIndicator.vue'
 
 const authStore = useAuthStore()
 const monitorStore = useMonitorStore()
@@ -21,6 +22,7 @@ async function handleLogout() {
     <div class="monitor-header">
       <span class="monitor-header-title">Монитор тимлида — JustFans CRM</span>
       <div class="monitor-header-right">
+        <WsIndicator />
         <span class="user-info">{{ authStore.user?.display_name }}</span>
         <button class="btn-logout" @click="handleLogout">Выйти</button>
       </div>

@@ -106,6 +106,5 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <WsIndicator />
   <router-view />
 </template>

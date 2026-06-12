@@ -28,12 +28,9 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(username: string, password: string) {
     loading.value = true
     try {
-      const [me, cfg] = await Promise.all([
-        api.post<User>('/api/auth/login/', { username, password }),
-        api.get<AppConfig>('/api/config/'),
-      ])
-      user.value = me
-      config.value = cfg
+      // Sequence calls: we need the session cookie from login to be set before calling /api/config/
+      user.value = await api.post<User>('/api/auth/login/', { username, password })
+      config.value = await api.get<AppConfig>('/api/config/')
       initialized.value = true
     } finally {
       loading.value = false
