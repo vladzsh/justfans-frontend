@@ -8,7 +8,7 @@ import { connect, disconnect, on, off, setHeartbeatSeconds } from '@/services/ws
 import { startTicker } from '@/composables/useTicker'
 import { api } from '@/services/api'
 import WsIndicator from '@/components/WsIndicator.vue'
-import type { SyncResponse } from '@/types/contracts'
+import type { MessageNewPayload, ConversationReadPayload, SyncResponse } from '@/types/contracts'
 
 const authStore = useAuthStore()
 const conversationsStore = useConversationsStore()
@@ -31,7 +31,25 @@ async function handleConnected() {
   }
 }
 
+function handleMessageNew(payload: unknown) {
+  const { message, conversation } = payload as MessageNewPayload
+  messagesStore.applyMessageNew(message)
+  conversationsStore.upsert(conversation)
+  // Auto mark-read when the conversation is currently open
+  if (conversationsStore.activeId === message.conversation_id) {
+    conversationsStore.markRead(message.conversation_id).catch(() => {})
+  }
+}
+
+function handleConversationRead(payload: unknown) {
+  const { conversation_id } = payload as ConversationReadPayload
+  // Sync tab: another tab already called mark-read
+  conversationsStore.resetUnread(conversation_id)
+}
+
 on('connected', handleConnected)
+on('message.new', handleMessageNew)
+on('conversation.read', handleConversationRead)
 
 watch(
   () => authStore.user,
@@ -49,6 +67,8 @@ watch(
 
 onUnmounted(() => {
   off('connected', handleConnected)
+  off('message.new', handleMessageNew)
+  off('conversation.read', handleConversationRead)
   stopTicker()
 })
 </script>
