@@ -13,6 +13,7 @@ let heartbeatTimer: ReturnType<typeof setInterval> | null = null
 let reconnectAttempt = 0
 let heartbeatSeconds = 10
 let intentionalClose = false
+let hasConnectedBefore = false
 
 function getWsUrl(): string {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -59,7 +60,8 @@ export function connect() {
     wsStatus.value = 'connected'
     reconnectAttempt = 0
     startHeartbeat()
-    dispatch('connected', {})
+    dispatch('connected', { isReconnect: hasConnectedBefore })
+    hasConnectedBefore = true
   }
 
   socket.onmessage = (event) => {
@@ -85,6 +87,7 @@ export function connect() {
 
 export function disconnect() {
   intentionalClose = true
+  hasConnectedBefore = false
   if (reconnectTimer) {
     clearTimeout(reconnectTimer)
     reconnectTimer = null
@@ -116,4 +119,17 @@ export function off(type: string, handler: EventHandler) {
 
 export function setHeartbeatSeconds(seconds: number) {
   heartbeatSeconds = seconds
+}
+
+/** Reset all module-level state. Only for use in tests. */
+export function _resetForTest() {
+  hasConnectedBefore = false
+  intentionalClose = false
+  reconnectAttempt = 0
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+  stopHeartbeat()
+  socket = null
 }

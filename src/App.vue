@@ -20,18 +20,22 @@ const router = useRouter()
 const stopTicker = startTicker()
 
 // Subscribe BEFORE firing sync so racing live events are deduped
-async function handleConnected() {
+async function handleConnected(rawPayload: unknown) {
+  const { isReconnect } = rawPayload as { isReconnect: boolean }
   if (!authStore.user) return
 
   if (authStore.user.role === 'chatter') {
-    try {
-      const afterId = messagesStore.maxId
-      const syncData = await api.get<SyncResponse>(`/api/sync/?after_id=${afterId}`)
-      messagesStore.mergeSync(syncData.messages)
-      conversationsStore.setAll(syncData.conversations)
-      messagesStore.resendPending()
-    } catch {
-      // non-fatal; live events will catch up
+    // Resync only on reconnect — first connect data arrives via conversations list + dialog history
+    if (isReconnect) {
+      try {
+        const afterId = messagesStore.maxId
+        const syncData = await api.get<SyncResponse>(`/api/sync/?after_id=${afterId}`)
+        messagesStore.mergeSync(syncData.messages)
+        conversationsStore.setAll(syncData.conversations)
+        messagesStore.resendPending()
+      } catch {
+        // non-fatal; live events will catch up
+      }
     }
   } else if (authStore.user.role === 'teamlead') {
     monitorStore.loadSnapshot().catch(() => {})
