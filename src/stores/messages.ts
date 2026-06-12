@@ -80,6 +80,10 @@ export const useMessagesStore = defineStore('messages', () => {
   function mergeSync(messages: Message[]) {
     for (const msg of messages) {
       byId.value[msg.id] = msg
+      // Prune optimistic twin if already confirmed server-side
+      if (msg.client_msg_id && optimistic.value[msg.client_msg_id]) {
+        delete optimistic.value[msg.client_msg_id]
+      }
     }
   }
 

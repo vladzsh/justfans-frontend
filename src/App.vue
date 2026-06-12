@@ -69,7 +69,9 @@ watch(
     if (user) {
       setHeartbeatSeconds(authStore.config.heartbeat_seconds)
       connect()
-    } else {
+    } else if (authStore.initialized) {
+      // Only redirect on real logout; skip the pre-init null on first load
+      // (the router guard handles unauthenticated access during init)
       disconnect()
       router.push('/login')
     }
