@@ -2,7 +2,9 @@
 import { computed } from 'vue'
 import { useMonitorStore } from '@/stores/monitor'
 import { useAuthStore } from '@/stores/auth'
-import type { ChatterStatus } from '@/types/contracts'
+import { now } from '@/composables/useTicker'
+import { calcIsOffline, calcIsOverdue } from '@/stores/monitor'
+import type { ChatterStatus, WaitingDialog } from '@/types/contracts'
 
 const monitorStore = useMonitorStore()
 const authStore = useAuthStore()
@@ -10,11 +12,24 @@ const authStore = useAuthStore()
 const config = computed(() => authStore.config)
 
 function isOffline(chatter: ChatterStatus): boolean {
-  return monitorStore.isOffline(chatter, config.value.presence_grace_seconds)
+  return calcIsOffline(
+    chatter.connected,
+    chatter.last_seen,
+    now.value,
+    config.value.presence_grace_seconds,
+  )
+}
+
+function isOverdue(dialog: WaitingDialog): boolean {
+  return calcIsOverdue(dialog.waiting_since, now.value, config.value.overdue_seconds)
+}
+
+function overdueCount(chatter: ChatterStatus): number {
+  return chatter.waiting.filter((d) => isOverdue(d)).length
 }
 
 function waitingDuration(since: string): string {
-  const diffMs = Date.now() - new Date(since).getTime()
+  const diffMs = now.value - new Date(since).getTime()
   const totalSec = Math.floor(diffMs / 1000)
   const min = Math.floor(totalSec / 60)
   const sec = totalSec % 60
@@ -46,6 +61,7 @@ function lastSeen(iso: string): string {
           <th>Последний онлайн</th>
           <th>Диалогов</th>
           <th>Ожидают</th>
+          <th>Просрочено</th>
         </tr>
       </thead>
       <tbody>
@@ -69,6 +85,12 @@ function lastSeen(iso: string): string {
             <span v-if="chatter.waiting.length > 0">{{ chatter.waiting.length }}</span>
             <span v-else class="text-muted">—</span>
           </td>
+          <td class="td-count">
+            <span v-if="overdueCount(chatter) > 0" class="overdue-count">
+              {{ overdueCount(chatter) }}
+            </span>
+            <span v-else class="text-muted">—</span>
+          </td>
         </tr>
       </tbody>
     </table>
@@ -83,9 +105,11 @@ function lastSeen(iso: string): string {
         v-for="dialog in chatter.waiting"
         :key="dialog.conversation_id"
         class="waiting-row"
+        :class="{ 'waiting-row--overdue': isOverdue(dialog) }"
       >
         <span class="waiting-fan">{{ dialog.fan_name }}</span>
         <span class="waiting-timer">{{ waitingDuration(dialog.waiting_since) }}</span>
+        <span v-if="isOverdue(dialog)" class="overdue-tag">ПРОСРОЧЕНО</span>
       </div>
     </div>
   </div>
@@ -175,6 +199,14 @@ function lastSeen(iso: string): string {
   color: var(--danger);
 }
 
+.overdue-count {
+  background: rgba(248, 81, 73, 0.2);
+  color: var(--danger);
+  font-weight: 600;
+  padding: 0.125rem 0.5rem;
+  border-radius: 10px;
+}
+
 .waiting-section {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
@@ -195,10 +227,16 @@ function lastSeen(iso: string): string {
   gap: 1rem;
   padding: 0.5rem 0.75rem;
   border-radius: 6px;
+  transition: background 0.15s;
 }
 
 .waiting-row:hover {
   background: var(--bg-tertiary);
+}
+
+.waiting-row--overdue {
+  background: var(--overdue-bg);
+  border: 1px solid var(--overdue-border);
 }
 
 .waiting-fan {
@@ -210,5 +248,15 @@ function lastSeen(iso: string): string {
   font-variant-numeric: tabular-nums;
   color: var(--text-secondary);
   font-size: 0.875rem;
+}
+
+.overdue-tag {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  background: var(--danger);
+  color: #fff;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
 }
 </style>
