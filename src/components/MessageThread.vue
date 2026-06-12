@@ -2,6 +2,7 @@
 import { computed, ref, watch, nextTick, onMounted } from 'vue'
 import { useConversationsStore } from '@/stores/conversations'
 import { useMessagesStore } from '@/stores/messages'
+import { api } from '@/services/api'
 import MessageInput from '@/components/MessageInput.vue'
 import type { Message, OptimisticMessage } from '@/types/contracts'
 
@@ -55,6 +56,10 @@ function handleScroll() {
   }
 }
 
+async function simulateFanMessage() {
+  await api.post('/api/demo/fan-message/', { conversation_id: conversationId.value })
+}
+
 watch(
   conversationId,
   () => {
@@ -89,6 +94,9 @@ onMounted(() => {
           <span class="thread-model-name">{{ conversation.model.avatar }} {{ conversation.model.name }}</span>
         </div>
       </div>
+      <button class="btn-simulate" @click="simulateFanMessage" title="Симулировать сообщение фана">
+        💬 Симулировать сообщение фана
+      </button>
     </div>
 
     <div class="thread-messages" ref="scrollEl" @scroll="handleScroll">
@@ -170,6 +178,21 @@ onMounted(() => {
 .thread-model-name {
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+
+.btn-simulate {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.375rem 0.75rem;
+  transition: all 0.15s;
+}
+
+.btn-simulate:hover {
+  color: var(--text-primary);
+  border-color: var(--accent);
 }
 
 .thread-messages {
