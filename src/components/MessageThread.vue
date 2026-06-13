@@ -5,6 +5,7 @@ import { useMessagesStore } from '@/stores/messages'
 import { api } from '@/services/api'
 import MessageInput from '@/components/MessageInput.vue'
 import type { Message, OptimisticMessage } from '@/types/contracts'
+import ppvMock from '@/assets/ppv-mock.png'
 
 const conversationsStore = useConversationsStore()
 const messagesStore = useMessagesStore()
@@ -137,10 +138,19 @@ onMounted(() => {
           :title="isFailed(msg) ? 'Click to retry' : undefined"
           @click="isFailed(msg) ? retryFailed(msg as OptimisticMessage) : undefined"
         >
-          <div v-if="msg.kind === 'ppv'" class="ppv-badge">
-            💎 PPV · {{ msg.ppv_price }}$
-          </div>
-          <p class="msg-text">{{ msg.text }}</p>
+          <template v-if="msg.kind === 'ppv'">
+            <div class="ppv-preview">
+              <img :src="ppvMock" alt="Закрытый контент" class="ppv-img" />
+              <div class="ppv-lock-overlay">
+                <span class="ppv-lock-icon">🔒</span>
+                <span class="ppv-unlock-price">{{ msg.ppv_price }}$</span>
+              </div>
+            </div>
+            <div class="ppv-badge">
+              💎 PPV · {{ msg.ppv_price }}$
+            </div>
+          </template>
+          <p v-if="msg.kind !== 'ppv'" class="msg-text">{{ msg.text }}</p>
           <span v-if="isFailed(msg)" class="msg-error-detail">
             ❌ {{ (msg as OptimisticMessage).error_detail }}
           </span>
@@ -281,6 +291,47 @@ onMounted(() => {
 
 .msg-bubble--pending {
   opacity: 0.7;
+}
+
+.ppv-preview {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+  border: 1px solid var(--ppv-border);
+  max-width: 220px;
+}
+
+.ppv-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  filter: blur(6px) brightness(0.6);
+  user-select: none;
+  pointer-events: none;
+}
+
+.ppv-lock-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+.ppv-lock-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8));
+}
+
+.ppv-unlock-price {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-shadow: 0 1px 4px rgba(0,0,0,0.9);
 }
 
 .ppv-badge {
