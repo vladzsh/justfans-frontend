@@ -10,6 +10,7 @@ const handlers: Record<string, EventHandler[]> = {}
 let socket: WebSocket | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null
+let pongTimer: ReturnType<typeof setTimeout> | null = null
 let reconnectAttempt = 0
 let heartbeatSeconds = 10
 let intentionalClose = false
@@ -30,6 +31,12 @@ function startHeartbeat() {
   stopHeartbeat()
   heartbeatTimer = setInterval(() => {
     send({ type: 'ping', payload: {} })
+    if (!pongTimer) {
+      pongTimer = setTimeout(() => {
+        pongTimer = null
+        socket?.close()
+      }, 2 * heartbeatSeconds * 1000)
+    }
   }, heartbeatSeconds * 1000)
 }
 
@@ -37,6 +44,10 @@ function stopHeartbeat() {
   if (heartbeatTimer) {
     clearInterval(heartbeatTimer)
     heartbeatTimer = null
+  }
+  if (pongTimer) {
+    clearTimeout(pongTimer)
+    pongTimer = null
   }
 }
 
@@ -70,6 +81,12 @@ export function connect() {
       envelope = JSON.parse(event.data as string) as { type: string; payload: unknown }
     } catch {
       return
+    }
+    if (envelope.type === 'pong') {
+      if (pongTimer) {
+        clearTimeout(pongTimer)
+        pongTimer = null
+      }
     }
     dispatch(envelope.type, envelope.payload)
   }
