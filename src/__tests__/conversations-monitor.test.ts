@@ -97,15 +97,16 @@ describe('monitor store — offline and overdue via calcIs* pure functions', () 
     now.value = BASE_TIME
   })
 
-  it('calcIsOffline returns false when connected=true', () => {
-    expect(calcIsOffline(true, new Date(BASE_TIME - 60_000).toISOString(), BASE_TIME, 30)).toBe(false)
+  it('calcIsOffline returns true when connected=true but last_seen is stale (BUG-1 regression)', () => {
+    // connected=true must NOT prevent offline when last_seen is stale
+    expect(calcIsOffline(true, new Date(BASE_TIME - 60_000).toISOString(), BASE_TIME, 30)).toBe(true)
   })
 
-  it('calcIsOffline returns false when disconnected but within grace period', () => {
+  it('calcIsOffline returns false when last_seen is within grace period', () => {
     expect(calcIsOffline(false, new Date(BASE_TIME - 10_000).toISOString(), BASE_TIME, 30)).toBe(false)
   })
 
-  it('calcIsOffline returns true when disconnected and past grace period', () => {
+  it('calcIsOffline returns true when last_seen is past grace period', () => {
     expect(calcIsOffline(false, new Date(BASE_TIME - 31_000).toISOString(), BASE_TIME, 30)).toBe(true)
   })
 
@@ -150,5 +151,51 @@ describe('monitor store — offline and overdue via calcIs* pure functions', () 
     // Advance past grace period
     now.value = BASE_TIME + 25_000
     expect(store.isOffline(chatter, 30)).toBe(true)
+  })
+
+  it('frozen chatter: connected=true but stale last_seen → offline (BUG-1 regression)', () => {
+    const store = useMonitorStore()
+    // last_seen = BASE_TIME - 35s (older than grace=30s), connected=true (silent drop, no disconnect)
+    const chatter = makeChatter(1, true, BASE_TIME - 35_000)
+    store.applyUpdate(chatter)
+    now.value = BASE_TIME
+    expect(store.isOffline(chatter, 30)).toBe(true)
+  })
+
+  it('live chatter: presence.update refreshes last_seen → stays online past grace', () => {
+    const store = useMonitorStore()
+    // initial last_seen = BASE_TIME, connected=true
+    const chatter = makeChatter(1, true, BASE_TIME)
+    store.applyUpdate(chatter)
+
+    // advance time past grace (35s), but update last_seen via presence.update
+    now.value = BASE_TIME + 35_000
+    const freshLastSeen = new Date(BASE_TIME + 35_000).toISOString()
+    store.applyPresenceUpdate(1, freshLastSeen)
+
+    // last_seen is now fresh (diff = 0) → not offline
+    expect(store.isOffline(store.chatters[1], 30)).toBe(false)
+  })
+
+  it('applyPresenceUpdate updates only last_seen, not connected or dialogs_count', () => {
+    const store = useMonitorStore()
+    const chatter = makeChatter(1, true, BASE_TIME, [
+      { conversation_id: 42, fan_name: 'Fan', waiting_since: new Date(BASE_TIME).toISOString() },
+    ])
+    store.applyUpdate(chatter)
+
+    const newLastSeen = new Date(BASE_TIME + 10_000).toISOString()
+    store.applyPresenceUpdate(1, newLastSeen)
+
+    expect(store.chatters[1].last_seen).toBe(newLastSeen)
+    expect(store.chatters[1].connected).toBe(true)
+    expect(store.chatters[1].dialogs_count).toBe(3)
+    expect(store.chatters[1].waiting).toHaveLength(1)
+  })
+
+  it('applyPresenceUpdate is a no-op for unknown chatter id', () => {
+    const store = useMonitorStore()
+    store.applyPresenceUpdate(999, new Date(BASE_TIME).toISOString())
+    expect(Object.keys(store.chatters)).toHaveLength(0)
   })
 })
