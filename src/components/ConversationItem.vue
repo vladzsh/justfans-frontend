@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Conversation } from '@/types/contracts'
+import { api } from '@/services/api'
 
 const props = defineProps<{
   conversation: Conversation
@@ -26,6 +27,11 @@ function preview(c: Conversation): string {
   const prefix = c.last_message.sender === 'chatter' ? 'Вы: ' : ''
   return prefix + c.last_message.text
 }
+
+function simulateIncoming(e: MouseEvent) {
+  e.stopPropagation()
+  api.post('/api/demo/fan-message/', { conversation_id: props.conversation.id }).catch(() => {})
+}
 </script>
 
 <template>
@@ -49,6 +55,11 @@ function preview(c: Conversation): string {
       <div class="conv-meta">
         <span class="conv-model">{{ conversation.model.avatar }} {{ conversation.model.name }}</span>
         <span v-if="conversation.awaiting_reply_since" class="conv-waiting-dot" title="Ждёт ответа" />
+        <button
+          class="btn-sim-incoming"
+          title="Симулировать входящее сообщение"
+          @click.stop.prevent="simulateIncoming($event)"
+        >📨</button>
       </div>
     </div>
   </div>
@@ -155,5 +166,22 @@ function preview(c: Conversation): string {
   height: 8px;
   border-radius: 50%;
   background: var(--warning);
+}
+
+.btn-sim-incoming {
+  font-size: 0.75rem;
+  line-height: 1;
+  padding: 0 2px;
+  opacity: 0.4;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.conv-item:hover .btn-sim-incoming {
+  opacity: 0.8;
+}
+
+.btn-sim-incoming:hover {
+  opacity: 1 !important;
 }
 </style>
