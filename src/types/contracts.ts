@@ -75,7 +75,7 @@ export interface ChatterStatus {
   id: number
   display_name: string
   connected: boolean
-  last_seen: string
+  last_seen: string | null
   dialogs_count: number
   waiting: WaitingDialog[]
 }
@@ -93,7 +93,7 @@ export interface WsEnvelope<T = unknown> {
 // WS server→client events
 export interface PresenceUpdatePayload {
   chatter_id: number
-  last_seen: string
+  last_seen: string | null
 }
 
 export interface MessageNewPayload {

@@ -33,11 +33,14 @@ function waitingDuration(since: string): string {
   const totalSec = Math.floor(diffMs / 1000)
   const min = Math.floor(totalSec / 60)
   const sec = totalSec % 60
-  return `${min}:${String(sec).padStart(2, '0')}`
+  return min + ':' + String(sec).padStart(2, '0')
 }
 
-function lastSeen(iso: string): string {
-  return new Date(iso).toLocaleTimeString('ru-RU', {
+function lastSeen(iso: string | null): string {
+  if (iso === null) return '—'
+  const date = new Date(iso)
+  if (isNaN(date.getTime())) return '—'
+  return date.toLocaleTimeString('ru-RU', {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',

@@ -6,15 +6,20 @@ import type { ChatterStatus, MonitorSnapshot } from '@/types/contracts'
 
 export function calcIsOffline(
   _connected: boolean,
-  lastSeen: string,
+  lastSeen: string | null,
   nowMs: number,
   graceSeconds: number,
 ): boolean {
-  return nowMs - new Date(lastSeen).getTime() > graceSeconds * 1000
+  if (!lastSeen) return true
+  const lastSeenMs = new Date(lastSeen).getTime()
+  if (isNaN(lastSeenMs)) return true
+  return nowMs - lastSeenMs > graceSeconds * 1000
 }
 
 export function calcIsOverdue(waitingSince: string, nowMs: number, overdueSeconds: number): boolean {
-  return nowMs - new Date(waitingSince).getTime() > overdueSeconds * 1000
+  const sinceMs = new Date(waitingSince).getTime()
+  if (isNaN(sinceMs)) return false
+  return nowMs - sinceMs > overdueSeconds * 1000
 }
 
 export const useMonitorStore = defineStore('monitor', () => {
@@ -36,7 +41,7 @@ export const useMonitorStore = defineStore('monitor', () => {
     chatters.value[chatterData.id] = chatterData
   }
 
-  function applyPresenceUpdate(chatterId: number, lastSeen: string) {
+  function applyPresenceUpdate(chatterId: number, lastSeen: string | null) {
     const chatter = chatters.value[chatterId]
     if (!chatter) return
     chatters.value[chatterId] = { ...chatter, last_seen: lastSeen }
