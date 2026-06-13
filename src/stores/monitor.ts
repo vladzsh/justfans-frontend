@@ -5,12 +5,11 @@ import { now } from '@/composables/useTicker'
 import type { ChatterStatus, MonitorSnapshot } from '@/types/contracts'
 
 export function calcIsOffline(
-  connected: boolean,
+  _connected: boolean,
   lastSeen: string,
   nowMs: number,
   graceSeconds: number,
 ): boolean {
-  if (connected) return false
   return nowMs - new Date(lastSeen).getTime() > graceSeconds * 1000
 }
 
@@ -37,6 +36,12 @@ export const useMonitorStore = defineStore('monitor', () => {
     chatters.value[chatterData.id] = chatterData
   }
 
+  function applyPresenceUpdate(chatterId: number, lastSeen: string) {
+    const chatter = chatters.value[chatterId]
+    if (!chatter) return
+    chatters.value[chatterId] = { ...chatter, last_seen: lastSeen }
+  }
+
   function isOffline(chatter: ChatterStatus, graceSeconds: number): boolean {
     return calcIsOffline(chatter.connected, chatter.last_seen, now.value, graceSeconds)
   }
@@ -45,5 +50,5 @@ export const useMonitorStore = defineStore('monitor', () => {
     return calcIsOverdue(waitingSince, now.value, overdueSeconds)
   }
 
-  return { chatters, sortedChatters, loadSnapshot, applyUpdate, isOffline, isOverdue }
+  return { chatters, sortedChatters, loadSnapshot, applyUpdate, applyPresenceUpdate, isOffline, isOverdue }
 })

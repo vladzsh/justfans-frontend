@@ -91,6 +91,11 @@ export interface WsEnvelope<T = unknown> {
 }
 
 // WS server→client events
+export interface PresenceUpdatePayload {
+  chatter_id: number
+  last_seen: string
+}
+
 export interface MessageNewPayload {
   message: Message
   conversation: Conversation

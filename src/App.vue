@@ -9,7 +9,7 @@ import { connect, disconnect, on, off, setHeartbeatSeconds } from '@/services/ws
 import { startTicker } from '@/composables/useTicker'
 import { api } from '@/services/api'
 import WsIndicator from '@/components/WsIndicator.vue'
-import type { MessageNewPayload, ConversationReadPayload, ChatterStatus, SyncResponse, WsErrorPayload } from '@/types/contracts'
+import type { MessageNewPayload, ConversationReadPayload, ChatterStatus, SyncResponse, WsErrorPayload, PresenceUpdatePayload } from '@/types/contracts'
 
 const authStore = useAuthStore()
 const conversationsStore = useConversationsStore()
@@ -62,6 +62,11 @@ function handleMonitorUpdate(payload: unknown) {
   monitorStore.applyUpdate(payload as ChatterStatus)
 }
 
+function handlePresenceUpdate(payload: unknown) {
+  const { chatter_id, last_seen } = payload as PresenceUpdatePayload
+  monitorStore.applyPresenceUpdate(chatter_id, last_seen)
+}
+
 function handleWsError(payload: unknown) {
   const { detail, client_msg_id } = payload as WsErrorPayload
   if (client_msg_id) {
@@ -77,6 +82,7 @@ on('connected', handleConnected)
 on('message.new', handleMessageNew)
 on('conversation.read', handleConversationRead)
 on('monitor.update', handleMonitorUpdate)
+on('presence.update', handlePresenceUpdate)
 on('error', handleWsError)
 
 watch(
@@ -100,6 +106,7 @@ onUnmounted(() => {
   off('message.new', handleMessageNew)
   off('conversation.read', handleConversationRead)
   off('monitor.update', handleMonitorUpdate)
+  off('presence.update', handlePresenceUpdate)
   off('error', handleWsError)
   stopTicker()
 })
