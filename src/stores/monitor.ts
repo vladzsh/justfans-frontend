@@ -2,7 +2,7 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { api } from '@/services/api'
 import { now } from '@/composables/useTicker'
-import type { ChatterStatus, MonitorSnapshot } from '@/types/contracts'
+import type { ChatterStatus, ModelStatus, MonitorSnapshot } from '@/types/contracts'
 
 export function calcIsOffline(
   connected: boolean,
@@ -27,9 +27,14 @@ export function calcIsOverdue(waitingSince: string, nowMs: number, overdueSecond
 
 export const useMonitorStore = defineStore('monitor', () => {
   const chatters = ref<Record<number, ChatterStatus>>({})
+  const models = ref<Record<number, ModelStatus>>({})
 
   const sortedChatters = computed<ChatterStatus[]>(() =>
     Object.values(chatters.value).sort((a, b) => a.display_name.localeCompare(b.display_name)),
+  )
+
+  const sortedModels = computed<ModelStatus[]>(() =>
+    Object.values(models.value).sort((a, b) => a.name.localeCompare(b.name)),
   )
 
   async function loadSnapshot() {
@@ -38,10 +43,21 @@ export const useMonitorStore = defineStore('monitor', () => {
     for (const c of snap.chatters) {
       chatters.value[c.id] = c
     }
+    models.value = {}
+    for (const m of snap.models) {
+      models.value[m.id] = m
+    }
   }
 
   function applyUpdate(chatterData: ChatterStatus) {
     chatters.value[chatterData.id] = chatterData
+  }
+
+  function applyModelsUpdate(modelsData: ModelStatus[]) {
+    models.value = {}
+    for (const m of modelsData) {
+      models.value[m.id] = m
+    }
   }
 
   function applyPresenceUpdate(chatterId: number, lastSeen: string | null) {
@@ -58,5 +74,5 @@ export const useMonitorStore = defineStore('monitor', () => {
     return calcIsOverdue(waitingSince, now.value, overdueSeconds)
   }
 
-  return { chatters, sortedChatters, loadSnapshot, applyUpdate, applyPresenceUpdate, isOffline, isOverdue }
+  return { chatters, models, sortedChatters, sortedModels, loadSnapshot, applyUpdate, applyModelsUpdate, applyPresenceUpdate, isOffline, isOverdue }
 })

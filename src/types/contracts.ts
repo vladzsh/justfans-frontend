@@ -80,8 +80,22 @@ export interface ChatterStatus {
   waiting: WaitingDialog[]
 }
 
+export interface ModelStatus {
+  id: number
+  name: string
+  avatar: string
+  dialogs_count: number
+  waiting: WaitingDialog[]
+}
+
 export interface MonitorSnapshot {
   chatters: ChatterStatus[]
+  models: ModelStatus[]
+}
+
+export interface MonitorUpdatePayload {
+  chatter: ChatterStatus
+  models: ModelStatus[]
 }
 
 // WebSocket envelope

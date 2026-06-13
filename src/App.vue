@@ -9,7 +9,7 @@ import { connect, disconnect, on, off, setHeartbeatSeconds } from '@/services/ws
 import { startTicker } from '@/composables/useTicker'
 import { api } from '@/services/api'
 import WsIndicator from '@/components/WsIndicator.vue'
-import type { MessageNewPayload, ConversationReadPayload, ChatterStatus, SyncResponse, WsErrorPayload, PresenceUpdatePayload } from '@/types/contracts'
+import type { MessageNewPayload, ConversationReadPayload, MonitorUpdatePayload, SyncResponse, WsErrorPayload, PresenceUpdatePayload } from '@/types/contracts'
 
 const authStore = useAuthStore()
 const conversationsStore = useConversationsStore()
@@ -59,7 +59,9 @@ function handleConversationRead(payload: unknown) {
 }
 
 function handleMonitorUpdate(payload: unknown) {
-  monitorStore.applyUpdate(payload as ChatterStatus)
+  const { chatter, models } = payload as MonitorUpdatePayload
+  monitorStore.applyUpdate(chatter)
+  monitorStore.applyModelsUpdate(models)
 }
 
 function handlePresenceUpdate(payload: unknown) {

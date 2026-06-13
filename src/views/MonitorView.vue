@@ -1,12 +1,22 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useMonitorStore } from '@/stores/monitor'
 import MonitorTable from '@/components/MonitorTable.vue'
+import ModelsTable from '@/components/ModelsTable.vue'
 import WsIndicator from '@/components/WsIndicator.vue'
 
 const authStore = useAuthStore()
 const monitorStore = useMonitorStore()
+
+const overdueLabel = computed(() => {
+  const s = authStore.config.overdue_seconds
+  const min = Math.floor(s / 60)
+  const sec = s % 60
+  if (min > 0 && sec > 0) return `${min} мин ${sec} сек`
+  if (min > 0) return `${min} мин`
+  return `${s} сек`
+})
 
 onMounted(async () => {
   await monitorStore.loadSnapshot()
@@ -22,6 +32,7 @@ async function handleLogout() {
     <div class="monitor-header">
       <span class="monitor-header-title">Монитор тимлида — JustFans CRM</span>
       <div class="monitor-header-right">
+        <span class="overdue-threshold">Порог просрочки: {{ overdueLabel }}</span>
         <WsIndicator />
         <span class="user-info">{{ authStore.user?.display_name }}</span>
         <button class="btn-logout" @click="handleLogout">Выйти</button>
@@ -30,6 +41,7 @@ async function handleLogout() {
 
     <div class="monitor-body">
       <MonitorTable />
+      <ModelsTable />
     </div>
   </div>
 </template>
@@ -84,5 +96,17 @@ async function handleLogout() {
   flex: 1;
   overflow: auto;
   padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.overdue-threshold {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  padding: 0.25rem 0.625rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
 }
 </style>
