@@ -10,11 +10,16 @@ const handlers: Record<string, EventHandler[]> = {}
 let socket: WebSocket | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null
+let pongDeadlineTimer: ReturnType<typeof setTimeout> | null = null
 let awaitingPong = false
 let reconnectAttempt = 0
 let heartbeatSeconds = 10
 let intentionalClose = false
 let hasConnectedBefore = false
+
+// Network event handlers — added once per session, removed on disconnect/reset
+let onlineHandler: (() => void) | null = null
+let offlineHandler: (() => void) | null = null
 
 function getWsUrl(): string {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -27,18 +32,43 @@ function dispatch(type: string, payload: unknown) {
   }
 }
 
+function clearPongDeadline() {
+  if (pongDeadlineTimer) {
+    clearTimeout(pongDeadlineTimer)
+    pongDeadlineTimer = null
+  }
+}
+
+/**
+ * Send a ping and arm a short deadline.  If a pong does not arrive within
+ * min(heartbeatSeconds, 4) seconds the connection is declared dead without
+ * waiting for the next heartbeat tick, cutting detection latency roughly in
+ * half compared to the old 2×heartbeat approach.
+ */
+function sendPing() {
+  awaitingPong = true
+  send({ type: 'ping', payload: {} })
+  clearPongDeadline()
+  pongDeadlineTimer = setTimeout(() => {
+    if (awaitingPong) {
+      handleDeadConnection()
+    }
+  }, Math.min(heartbeatSeconds, 4) * 1000)
+}
+
 function startHeartbeat() {
   stopHeartbeat()
   awaitingPong = false
+  // Send an immediate ping so the server refreshes last_seen right away
+  // and the pong deadline starts from the moment the socket opens.
+  sendPing()
   heartbeatTimer = setInterval(() => {
     if (awaitingPong) {
-      // Previous ping went unanswered for a full interval — the connection is
-      // dead even if the socket never fired close/error (silent network drop).
+      // The pong deadline should catch this first; guard defensively.
       handleDeadConnection()
       return
     }
-    awaitingPong = true
-    send({ type: 'ping', payload: {} })
+    sendPing()
   }, heartbeatSeconds * 1000)
 }
 
@@ -47,6 +77,7 @@ function stopHeartbeat() {
     clearInterval(heartbeatTimer)
     heartbeatTimer = null
   }
+  clearPongDeadline()
   awaitingPong = false
 }
 
@@ -75,10 +106,48 @@ function scheduleReconnect() {
   reconnectTimer = setTimeout(connect, delay)
 }
 
+function addNetworkListeners() {
+  if (onlineHandler) return // already registered — only one set per session
+  onlineHandler = () => {
+    if (intentionalClose) return
+    // Cancel any pending backoff and reconnect immediately on network return.
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
+    reconnectAttempt = 0
+    connect()
+  }
+  offlineHandler = () => {
+    if (intentionalClose) return
+    // Fast hint: declare the connection dead when the browser reports offline.
+    // The pong deadline remains the authoritative liveness signal for silent
+    // drops; this listener is an optimistic shortcut for the DevTools-offline
+    // case where the browser fires the event reliably.
+    if (socket && socket.readyState <= WebSocket.OPEN) {
+      handleDeadConnection()
+    }
+  }
+  window.addEventListener('online', onlineHandler)
+  window.addEventListener('offline', offlineHandler)
+}
+
+function removeNetworkListeners() {
+  if (onlineHandler) {
+    window.removeEventListener('online', onlineHandler)
+    onlineHandler = null
+  }
+  if (offlineHandler) {
+    window.removeEventListener('offline', offlineHandler)
+    offlineHandler = null
+  }
+}
+
 export function connect() {
   if (socket && socket.readyState <= WebSocket.OPEN) return
   intentionalClose = false
   wsStatus.value = 'connecting'
+  addNetworkListeners()
 
   socket = new WebSocket(getWsUrl())
 
@@ -99,6 +168,7 @@ export function connect() {
     }
     if (envelope.type === 'pong') {
       awaitingPong = false
+      clearPongDeadline()
     }
     dispatch(envelope.type, envelope.payload)
   }
@@ -122,6 +192,7 @@ export function disconnect() {
     reconnectTimer = null
   }
   stopHeartbeat()
+  removeNetworkListeners()
   socket?.close()
   socket = null
   wsStatus.value = 'disconnected'
@@ -160,5 +231,6 @@ export function _resetForTest() {
     reconnectTimer = null
   }
   stopHeartbeat()
+  removeNetworkListeners()
   socket = null
 }
