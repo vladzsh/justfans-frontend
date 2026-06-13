@@ -3,7 +3,8 @@ import { setActivePinia, createPinia } from 'pinia'
 import { useConversationsStore } from '@/stores/conversations'
 import { useMonitorStore, calcIsOffline, calcIsOverdue } from '@/stores/monitor'
 import { now } from '@/composables/useTicker'
-import type { Conversation, ChatterStatus } from '@/types/contracts'
+import { api } from '@/services/api'
+import type { Conversation, ChatterStatus, ModelStatus, MonitorSnapshot } from '@/types/contracts'
 
 vi.mock('@/services/api', () => ({
   api: {
@@ -202,5 +203,88 @@ describe('monitor store — offline and overdue via calcIs* pure functions', () 
     const store = useMonitorStore()
     store.applyPresenceUpdate(999, new Date(BASE_TIME).toISOString())
     expect(Object.keys(store.chatters)).toHaveLength(0)
+  })
+})
+
+function makeModel(
+  id: number,
+  name: string,
+  waiting: { conversation_id: number; fan_name: string; waiting_since: string }[] = [],
+  dialogs_count = 0,
+): ModelStatus {
+  return { id, name, avatar: '💃', dialogs_count, waiting }
+}
+
+describe('monitor store — models panel', () => {
+  const BASE_TIME = 1_700_000_000_000
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    now.value = BASE_TIME
+  })
+
+  it('loadSnapshot populates models from snap.models', async () => {
+    const snapshot: MonitorSnapshot = {
+      chatters: [],
+      models: [
+        makeModel(1, 'Stella', [], 3),
+        makeModel(2, 'Luna', [{ conversation_id: 5, fan_name: 'Mark', waiting_since: new Date(BASE_TIME - 10_000).toISOString() }], 2),
+      ],
+    }
+    vi.mocked(api.get).mockResolvedValueOnce(snapshot)
+    const store = useMonitorStore()
+    await store.loadSnapshot()
+    expect(Object.keys(store.models)).toHaveLength(2)
+    expect(store.models[1].name).toBe('Stella')
+    expect(store.models[2].waiting).toHaveLength(1)
+  })
+
+  it('loadSnapshot: model with 0 waiting is still present', async () => {
+    const snapshot: MonitorSnapshot = {
+      chatters: [],
+      models: [makeModel(3, 'Violet', [], 0)],
+    }
+    vi.mocked(api.get).mockResolvedValueOnce(snapshot)
+    const store = useMonitorStore()
+    await store.loadSnapshot()
+    expect(store.models[3]).toBeDefined()
+    expect(store.models[3].waiting).toHaveLength(0)
+    expect(store.models[3].dialogs_count).toBe(0)
+  })
+
+  it('applyModelsUpdate replaces the entire models set', () => {
+    const store = useMonitorStore()
+    store.applyModelsUpdate([makeModel(1, 'Stella', [], 5), makeModel(2, 'Luna', [], 3)])
+    expect(Object.keys(store.models)).toHaveLength(2)
+
+    // Replace with a different set
+    store.applyModelsUpdate([makeModel(3, 'Nova', [], 1)])
+    expect(Object.keys(store.models)).toHaveLength(1)
+    expect(store.models[3].name).toBe('Nova')
+    expect(store.models[1]).toBeUndefined()
+  })
+
+  it('sortedModels is sorted alphabetically by name', () => {
+    const store = useMonitorStore()
+    store.applyModelsUpdate([makeModel(1, 'Zara'), makeModel(2, 'Anna'), makeModel(3, 'Mia')])
+    const names = store.sortedModels.map((m) => m.name)
+    expect(names).toEqual(['Anna', 'Mia', 'Zara'])
+  })
+
+  it('per-model overdue count uses calcIsOverdue correctly', () => {
+    const waitingSince = new Date(BASE_TIME - 130_000).toISOString() // 130s ago
+    const model = makeModel(1, 'Stella', [
+      { conversation_id: 1, fan_name: 'Fan A', waiting_since: waitingSince },
+      { conversation_id: 2, fan_name: 'Fan B', waiting_since: new Date(BASE_TIME - 50_000).toISOString() },
+    ], 2)
+    const overdueCount = model.waiting.filter((d) => calcIsOverdue(d.waiting_since, BASE_TIME, 120)).length
+    expect(overdueCount).toBe(1) // only Fan A is overdue (130s > 120s), Fan B is not (50s < 120s)
+  })
+
+  it('applyModelsUpdate with empty array clears all models', () => {
+    const store = useMonitorStore()
+    store.applyModelsUpdate([makeModel(1, 'Stella')])
+    store.applyModelsUpdate([])
+    expect(Object.keys(store.models)).toHaveLength(0)
   })
 })
