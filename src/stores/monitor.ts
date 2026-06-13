@@ -5,11 +5,14 @@ import { now } from '@/composables/useTicker'
 import type { ChatterStatus, MonitorSnapshot } from '@/types/contracts'
 
 export function calcIsOffline(
-  _connected: boolean,
+  connected: boolean,
   lastSeen: string | null,
   nowMs: number,
   graceSeconds: number,
 ): boolean {
+  // Fast path: a clean disconnect reports connected=false → offline immediately.
+  if (!connected) return true
+  // Silent drop: connected stays true but heartbeats stopped → last_seen goes stale.
   if (!lastSeen) return true
   const lastSeenMs = new Date(lastSeen).getTime()
   if (isNaN(lastSeenMs)) return true

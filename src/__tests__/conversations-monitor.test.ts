@@ -102,12 +102,17 @@ describe('monitor store — offline and overdue via calcIs* pure functions', () 
     expect(calcIsOffline(true, new Date(BASE_TIME - 60_000).toISOString(), BASE_TIME, 30)).toBe(true)
   })
 
-  it('calcIsOffline returns false when last_seen is within grace period', () => {
-    expect(calcIsOffline(false, new Date(BASE_TIME - 10_000).toISOString(), BASE_TIME, 30)).toBe(false)
+  it('calcIsOffline returns false when connected and last_seen is within grace period', () => {
+    expect(calcIsOffline(true, new Date(BASE_TIME - 10_000).toISOString(), BASE_TIME, 30)).toBe(false)
   })
 
-  it('calcIsOffline returns true when last_seen is past grace period', () => {
-    expect(calcIsOffline(false, new Date(BASE_TIME - 31_000).toISOString(), BASE_TIME, 30)).toBe(true)
+  it('calcIsOffline returns true when connected but last_seen is past grace period', () => {
+    expect(calcIsOffline(true, new Date(BASE_TIME - 31_000).toISOString(), BASE_TIME, 30)).toBe(true)
+  })
+
+  it('calcIsOffline returns true immediately when connected=false (clean disconnect fast path)', () => {
+    // Even with a fresh last_seen, a reported disconnect means offline now
+    expect(calcIsOffline(false, new Date(BASE_TIME - 1_000).toISOString(), BASE_TIME, 30)).toBe(true)
   })
 
   it('calcIsOverdue returns false before threshold', () => {
@@ -141,7 +146,7 @@ describe('monitor store — offline and overdue via calcIs* pure functions', () 
 
   it('monitor store isOffline uses now ref from useTicker', () => {
     const store = useMonitorStore()
-    const chatter = makeChatter(1, false, BASE_TIME - 10_000)
+    const chatter = makeChatter(1, true, BASE_TIME - 10_000)
     store.applyUpdate(chatter)
 
     // Within grace period (10s < 30s)
