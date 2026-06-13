@@ -29,40 +29,41 @@ async function submit() {
 
 <template>
   <div class="login-wrap">
-    <form class="login-box" @submit.prevent="submit">
-      <h1 class="login-title">JustFans CRM</h1>
-      <p class="login-sub">Рабочее место чатера</p>
+    <div class="login-content">
+      <h1 class="login-bg-title">JustFans CRM</h1>
+      
+      <form class="login-box" @submit.prevent="submit">
+        <div class="field">
+          <label for="username">Логин</label>
+          <input
+            id="username"
+            v-model="username"
+            type="text"
+            autocomplete="username"
+            placeholder="chatter1"
+            required
+          />
+        </div>
 
-      <div class="field">
-        <label for="username">Логин</label>
-        <input
-          id="username"
-          v-model="username"
-          type="text"
-          autocomplete="username"
-          placeholder="chatter1"
-          required
-        />
-      </div>
+        <div class="field">
+          <label for="password">Пароль</label>
+          <input
+            id="password"
+            v-model="password"
+            type="password"
+            autocomplete="current-password"
+            placeholder="••••••••"
+            required
+          />
+        </div>
 
-      <div class="field">
-        <label for="password">Пароль</label>
-        <input
-          id="password"
-          v-model="password"
-          type="password"
-          autocomplete="current-password"
-          placeholder="••••••••"
-          required
-        />
-      </div>
+        <p v-if="error" class="login-error">{{ error }}</p>
 
-      <p v-if="error" class="login-error">{{ error }}</p>
-
-      <button type="submit" class="btn-primary" :disabled="authStore.loading">
-        {{ authStore.loading ? 'Вход...' : 'Войти' }}
-      </button>
-    </form>
+        <button type="submit" class="btn-primary" :disabled="authStore.loading">
+          {{ authStore.loading ? 'Вход...' : 'Войти' }}
+        </button>
+      </form>
+    </div>
   </div>
 </template>
 
@@ -71,74 +72,103 @@ async function submit() {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100vh;
-  background: var(--bg-primary);
+  min-height: 100vh;
+  width: 100%;
+  margin: 0;
+  background-color: #0e0e11;
+  background-image: 
+    radial-gradient(
+      circle at center, 
+      rgba(46, 59, 138, 0.18) 0%, 
+      rgba(14, 14, 17, 0) 60%
+    ),
+    radial-gradient(
+      circle at center, 
+      rgba(30, 31, 64, 0.5) 0%, 
+      #0e0e11 100%
+    );
+  background-attachment: fixed;
+}
+
+.login-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2.5rem;
+  width: 100%;
+  max-width: 400px;
+}
+
+.login-bg-title {
+  font-size: 2.5rem;
+  font-weight: 500;
+  color: #e3e3e3;
+  margin: 0;
+  letter-spacing: -0.02em;
 }
 
 .login-box {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 2rem;
-  width: 360px;
+  background: rgba(30, 31, 36, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  padding: 2.5rem;
+  width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-}
-
-.login-title {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.login-sub {
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-  margin-top: -0.5rem;
+  gap: 1.5rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 0.375rem;
+  gap: 0.75rem;
 }
 
 .field label {
-  font-size: 0.875rem;
-  color: var(--text-secondary);
+  font-size: 0.95rem;
+  text-align: center;
+  color: #b0b0b0;
 }
 
 .field input {
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
-  padding: 0.5rem 0.75rem;
-  color: var(--text-primary);
+  padding: 0.75rem 1rem;
+  color: #fff;
   outline: none;
-  transition: border-color 0.15s;
+  transition: all 0.2s;
 }
 
 .field input:focus {
-  border-color: var(--accent);
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .login-error {
-  color: var(--danger);
+  color: #ff6b6b;
   font-size: 0.875rem;
 }
 
 .btn-primary {
-  background: var(--accent);
-  color: #0d1117;
+  background: #4a86ff;
+  color: #fff;
   font-weight: 600;
-  padding: 0.625rem 1rem;
-  border-radius: 6px;
-  transition: background 0.15s;
+  padding: 0.8rem 1rem;
+  border-radius: 12px;
+  transition: transform 0.15s, background 0.15s;
+  margin-top: 0.5rem;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--accent-hover);
+  background: #6296ff;
+  transform: translateY(-1px);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .btn-primary:disabled {
