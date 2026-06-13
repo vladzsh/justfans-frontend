@@ -25,5 +25,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    // Unit tests only — Playwright e2e specs (tests/, .explore/) run via `npx playwright test`
+    include: ['src/**/*.test.ts'],
   },
 })
