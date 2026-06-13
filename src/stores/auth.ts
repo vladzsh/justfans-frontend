@@ -28,9 +28,12 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(username: string, password: string) {
     loading.value = true
     try {
-      // Sequence calls: we need the session cookie from login to be set before calling /api/config/
-      user.value = await api.post<User>('/api/auth/login/', { username, password })
+      // Login first (sets the session cookie), then load config, and only then
+      // publish `user` — the App watcher reacts to `user` and reads `config`, so
+      // config must be ready before user flips (otherwise heartbeat uses the default).
+      const me = await api.post<User>('/api/auth/login/', { username, password })
       config.value = await api.get<AppConfig>('/api/config/')
+      user.value = me
       initialized.value = true
     } finally {
       loading.value = false
