@@ -120,44 +120,36 @@ describe('ws service — pong-timeout liveness', () => {
     setHeartbeatSeconds(10)
   })
 
-  it('pong arrives within timeout window → socket is NOT closed', () => {
+  it('continuous pongs keep the socket alive', () => {
     connect()
     const inst = MockWebSocket.instances[0]
     inst.simulateOpen()
 
-    // Fire the heartbeat interval → ping is sent and pong timer is armed
-    vi.advanceTimersByTime(HEARTBEAT * 1000)
+    // Each heartbeat tick sends a ping; a pong answers before the next tick
+    for (let i = 0; i < 4; i++) {
+      vi.advanceTimersByTime(HEARTBEAT * 1000)
+      inst.simulatePong()
+    }
+
     expect(inst.send).toHaveBeenCalled()
-
-    // Pong arrives before the timeout window expires
-    inst.simulatePong()
-
-    // Advance past the pong timeout — timer was already cleared by pong
-    vi.advanceTimersByTime(2 * HEARTBEAT * 1000)
-
     expect(inst.close).not.toHaveBeenCalled()
   })
 
-  it('pong absent for 2×heartbeat → socket.close() is called and reconnect starts', () => {
+  it('missing pong for two heartbeats drops the connection and reconnects without a graceful close', () => {
     connect()
     const inst = MockWebSocket.instances[0]
     inst.simulateOpen()
 
-    // Fire first heartbeat at t=HEARTBEAT → ping sent, pong timer armed for 2×HEARTBEAT
+    // Tick 1: ping sent, now awaiting a pong that never comes
     vi.advanceTimersByTime(HEARTBEAT * 1000)
     expect(inst.send).toHaveBeenCalled()
+    expect(inst.close).not.toHaveBeenCalled()
 
-    // Advance past pong timeout window (2×HEARTBEAT after it was armed, plus 1ms)
-    // Pong timer fires at t = HEARTBEAT + 2×HEARTBEAT = 3×HEARTBEAT
-    vi.advanceTimersByTime(2 * HEARTBEAT * 1000 + 1)
-
-    // Pong timeout fires: socket.close() is called
+    // Tick 2: still awaiting → connection declared dead
+    vi.advanceTimersByTime(HEARTBEAT * 1000)
     expect(inst.close).toHaveBeenCalledTimes(1)
 
-    // Simulate the close event so the reconnect path runs
-    inst.simulateClose()
-
-    // Reconnect is scheduled: advance past backoff (first attempt = 1s + up to 0.5s jitter)
+    // Reconnect is scheduled directly — no onclose event from the dead socket is required
     vi.advanceTimersByTime(2_000)
     expect(MockWebSocket.instances.length).toBe(2)
   })

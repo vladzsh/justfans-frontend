@@ -10,7 +10,7 @@ const handlers: Record<string, EventHandler[]> = {}
 let socket: WebSocket | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null
-let pongTimer: ReturnType<typeof setTimeout> | null = null
+let awaitingPong = false
 let reconnectAttempt = 0
 let heartbeatSeconds = 10
 let intentionalClose = false
@@ -29,14 +29,16 @@ function dispatch(type: string, payload: unknown) {
 
 function startHeartbeat() {
   stopHeartbeat()
+  awaitingPong = false
   heartbeatTimer = setInterval(() => {
-    send({ type: 'ping', payload: {} })
-    if (!pongTimer) {
-      pongTimer = setTimeout(() => {
-        pongTimer = null
-        socket?.close()
-      }, 2 * heartbeatSeconds * 1000)
+    if (awaitingPong) {
+      // Previous ping went unanswered for a full interval — the connection is
+      // dead even if the socket never fired close/error (silent network drop).
+      handleDeadConnection()
+      return
     }
+    awaitingPong = true
+    send({ type: 'ping', payload: {} })
   }, heartbeatSeconds * 1000)
 }
 
@@ -45,10 +47,23 @@ function stopHeartbeat() {
     clearInterval(heartbeatTimer)
     heartbeatTimer = null
   }
-  if (pongTimer) {
-    clearTimeout(pongTimer)
-    pongTimer = null
+  awaitingPong = false
+}
+
+function handleDeadConnection() {
+  if (socket) {
+    // Detach handlers so a late graceful onclose can't double-trigger reconnect
+    socket.onopen = socket.onmessage = socket.onclose = socket.onerror = null
+    try {
+      socket.close()
+    } catch {
+      // ignore — the socket is already unusable
+    }
+    socket = null
   }
+  wsStatus.value = 'disconnected'
+  stopHeartbeat()
+  scheduleReconnect()
 }
 
 function scheduleReconnect() {
@@ -83,10 +98,7 @@ export function connect() {
       return
     }
     if (envelope.type === 'pong') {
-      if (pongTimer) {
-        clearTimeout(pongTimer)
-        pongTimer = null
-      }
+      awaitingPong = false
     }
     dispatch(envelope.type, envelope.payload)
   }
