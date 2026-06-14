@@ -6,6 +6,7 @@ import MonitorTable from '@/components/MonitorTable.vue'
 import ModelsTable from '@/components/ModelsTable.vue'
 import OverdueQueue from '@/components/OverdueQueue.vue'
 import WsIndicator from '@/components/WsIndicator.vue'
+import MonitorCharts from '@/components/MonitorCharts.vue'
 import { now } from '@/composables/useTicker'
 
 const authStore = useAuthStore()
@@ -75,6 +76,9 @@ async function handleLogout() {
           <span class="kpi-value">{{ kpis.onlineCount }}/{{ kpis.totalChatters }}</span>
         </div>
       </div>
+
+      <!-- Charts: visual analytics (pure presentation, no backend needed) -->
+      <MonitorCharts />
 
       <!-- Unified overdue queue (replaces per-entity waiting card sections) -->
       <OverdueQueue />
