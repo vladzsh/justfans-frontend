@@ -150,7 +150,7 @@ onMounted(() => {
               💎 PPV · {{ msg.ppv_price }}$
             </div>
           </template>
-          <p v-if="msg.kind !== 'ppv'" class="msg-text">{{ msg.text }}</p>
+          <p class="msg-text">{{ msg.text }}</p>
           <span v-if="isFailed(msg)" class="msg-error-detail">
             ❌ {{ (msg as OptimisticMessage).error_detail }}
           </span>

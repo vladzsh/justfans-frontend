@@ -7,3 +7,7 @@ dist/
 
 # Scratch space for throwaway exploratory scripts
 .explore/
+
+# Playwright artifacts (generated, not committed)
+test-results/
+playwright-report/
