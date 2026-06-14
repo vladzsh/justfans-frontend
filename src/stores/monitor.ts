@@ -25,6 +25,114 @@ export function calcIsOverdue(waitingSince: string, nowMs: number, overdueSecond
   return nowMs - sinceMs > overdueSeconds * 1000
 }
 
+/** Format elapsed time since an ISO timestamp into a human-readable Russian duration.
+ *  ≥1d → "Nд MMч" | ≥1h → "Nч MMм" | ≥1min → "Nм SSс" | <1min → "Sс"
+ *  Invalid date or negative diff → "—"
+ */
+export function formatWaitDuration(sinceIso: string, nowMs: number): string {
+  const sinceMs = new Date(sinceIso).getTime()
+  if (isNaN(sinceMs)) return '—'
+  const totalSec = Math.max(0, Math.floor((nowMs - sinceMs) / 1000))
+
+  if (totalSec < 60) {
+    return `${totalSec}с`
+  }
+  if (totalSec < 3600) {
+    const min = Math.floor(totalSec / 60)
+    const sec = totalSec % 60
+    return `${min}м ${String(sec).padStart(2, '0')}с`
+  }
+  if (totalSec < 86400) {
+    const hours = Math.floor(totalSec / 3600)
+    const remMin = Math.floor((totalSec % 3600) / 60)
+    return `${hours}ч ${String(remMin).padStart(2, '0')}м`
+  }
+  const days = Math.floor(totalSec / 86400)
+  const remHours = Math.floor((totalSec % 86400) / 3600)
+  return `${days}д ${String(remHours).padStart(2, '0')}ч`
+}
+
+export interface QueueRow {
+  conversation_id: number
+  fan_name: string
+  waiting_since: string
+  chatter_name: string
+  model_name: string | undefined
+  model_avatar: string | undefined
+  overdue: boolean
+}
+
+/** Flatten all waiting dialogs across chatters, join model info from models list,
+ *  mark overdue, and sort by waiting_since ascending (oldest = most urgent first). */
+export function buildOverdueQueue(
+  chatters: ChatterStatus[],
+  models: ModelStatus[],
+  nowMs: number,
+  overdueSeconds: number,
+): QueueRow[] {
+  const modelByConvId = new Map<number, { name: string; avatar: string }>()
+  for (const model of models) {
+    for (const w of model.waiting) {
+      modelByConvId.set(w.conversation_id, { name: model.name, avatar: model.avatar })
+    }
+  }
+
+  const rows: QueueRow[] = []
+  for (const chatter of chatters) {
+    for (const dialog of chatter.waiting) {
+      const modelInfo = modelByConvId.get(dialog.conversation_id)
+      rows.push({
+        conversation_id: dialog.conversation_id,
+        fan_name: dialog.fan_name,
+        waiting_since: dialog.waiting_since,
+        chatter_name: chatter.display_name,
+        model_name: modelInfo?.name,
+        model_avatar: modelInfo?.avatar,
+        overdue: calcIsOverdue(dialog.waiting_since, nowMs, overdueSeconds),
+      })
+    }
+  }
+
+  rows.sort((a, b) => new Date(a.waiting_since).getTime() - new Date(b.waiting_since).getTime())
+  return rows
+}
+
+export interface MonitorKpis {
+  totalDialogs: number
+  totalWaiting: number
+  overdueCount: number
+  onlineCount: number
+  totalChatters: number
+}
+
+/** Aggregate KPI counters from all chatters for the summary bar. */
+export function calcMonitorKpis(
+  chatters: ChatterStatus[],
+  nowMs: number,
+  overdueSeconds: number,
+  graceSeconds: number,
+): MonitorKpis {
+  let totalDialogs = 0
+  let totalWaiting = 0
+  let overdueCount = 0
+  let onlineCount = 0
+
+  for (const chatter of chatters) {
+    totalDialogs += chatter.dialogs_count
+    totalWaiting += chatter.waiting.length
+    for (const dialog of chatter.waiting) {
+      if (calcIsOverdue(dialog.waiting_since, nowMs, overdueSeconds)) {
+        overdueCount++
+      }
+    }
+    if (!calcIsOffline(chatter.connected, chatter.last_seen, nowMs, graceSeconds)) {
+      onlineCount++
+    }
+  }
+
+  return { totalDialogs, totalWaiting, overdueCount, onlineCount, totalChatters: chatters.length }
+}
+
 export const useMonitorStore = defineStore('monitor', () => {
   const chatters = ref<Record<number, ChatterStatus>>({})
   const models = ref<Record<number, ModelStatus>>({})

@@ -28,14 +28,6 @@ function overdueCount(chatter: ChatterStatus): number {
   return chatter.waiting.filter((d) => isOverdue(d)).length
 }
 
-function waitingDuration(since: string): string {
-  const diffMs = now.value - new Date(since).getTime()
-  const totalSec = Math.floor(diffMs / 1000)
-  const min = Math.floor(totalSec / 60)
-  const sec = totalSec % 60
-  return min + ':' + String(sec).padStart(2, '0')
-}
-
 function lastSeen(iso: string | null): string {
   if (iso === null) return '—'
   const date = new Date(iso)
@@ -97,24 +89,6 @@ function lastSeen(iso: string | null): string {
         </tr>
       </tbody>
     </table>
-
-    <div
-      v-for="chatter in monitorStore.sortedChatters.filter((c) => c.waiting.length > 0)"
-      :key="`waiting-${chatter.id}`"
-      class="waiting-section"
-    >
-      <h3 class="waiting-section-title">{{ chatter.display_name }} — ожидают ответа</h3>
-      <div
-        v-for="dialog in chatter.waiting"
-        :key="dialog.conversation_id"
-        class="waiting-row"
-        :class="{ 'waiting-row--overdue': isOverdue(dialog) }"
-      >
-        <span class="waiting-fan">{{ dialog.fan_name }}</span>
-        <span class="waiting-timer">{{ waitingDuration(dialog.waiting_since) }}</span>
-        <span v-if="isOverdue(dialog)" class="overdue-tag">ПРОСРОЧЕНО</span>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -208,58 +182,5 @@ function lastSeen(iso: string | null): string {
   font-weight: 600;
   padding: 0.125rem 0.5rem;
   border-radius: 10px;
-}
-
-.waiting-section {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 1rem;
-}
-
-.waiting-section-title {
-  font-size: 0.9375rem;
-  font-weight: 500;
-  margin-bottom: 0.75rem;
-  color: var(--text-secondary);
-}
-
-.waiting-row {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: 6px;
-  transition: background 0.15s;
-}
-
-.waiting-row:hover {
-  background: var(--bg-tertiary);
-}
-
-.waiting-row--overdue {
-  background: var(--overdue-bg);
-  border: 1px solid var(--overdue-border);
-}
-
-.waiting-fan {
-  flex: 1;
-  font-weight: 500;
-}
-
-.waiting-timer {
-  font-variant-numeric: tabular-nums;
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-}
-
-.overdue-tag {
-  font-size: 0.6875rem;
-  font-weight: 700;
-  background: var(--danger);
-  color: #fff;
-  padding: 0.125rem 0.375rem;
-  border-radius: 4px;
-  letter-spacing: 0.5px;
 }
 </style>

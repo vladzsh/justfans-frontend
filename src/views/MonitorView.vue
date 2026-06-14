@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { useMonitorStore } from '@/stores/monitor'
+import { useMonitorStore, calcMonitorKpis } from '@/stores/monitor'
 import MonitorTable from '@/components/MonitorTable.vue'
 import ModelsTable from '@/components/ModelsTable.vue'
+import OverdueQueue from '@/components/OverdueQueue.vue'
 import WsIndicator from '@/components/WsIndicator.vue'
+import { now } from '@/composables/useTicker'
 
 const authStore = useAuthStore()
 const monitorStore = useMonitorStore()
@@ -17,6 +19,15 @@ const overdueLabel = computed(() => {
   if (min > 0) return `${min} мин`
   return `${s} сек`
 })
+
+const kpis = computed(() =>
+  calcMonitorKpis(
+    monitorStore.sortedChatters,
+    now.value,
+    authStore.config.overdue_seconds,
+    authStore.config.presence_grace_seconds,
+  ),
+)
 
 onMounted(async () => {
   await monitorStore.loadSnapshot()
@@ -40,6 +51,35 @@ async function handleLogout() {
     </div>
 
     <div class="monitor-body">
+      <!-- KPI summary bar -->
+      <div class="kpi-bar">
+        <div class="kpi-chip">
+          <span class="kpi-label">Диалогов</span>
+          <span class="kpi-value">{{ kpis.totalDialogs }}</span>
+        </div>
+        <div class="kpi-divider" />
+        <div class="kpi-chip">
+          <span class="kpi-label">Ждут</span>
+          <span class="kpi-value">{{ kpis.totalWaiting }}</span>
+        </div>
+        <div class="kpi-divider" />
+        <div class="kpi-chip">
+          <span class="kpi-label">Просрочено</span>
+          <span class="kpi-value" :class="{ 'kpi-value--danger': kpis.overdueCount > 0 }">
+            {{ kpis.overdueCount }}
+          </span>
+        </div>
+        <div class="kpi-divider" />
+        <div class="kpi-chip">
+          <span class="kpi-label">Онлайн</span>
+          <span class="kpi-value">{{ kpis.onlineCount }}/{{ kpis.totalChatters }}</span>
+        </div>
+      </div>
+
+      <!-- Unified overdue queue (replaces per-entity waiting card sections) -->
+      <OverdueQueue />
+
+      <!-- Summary tables (without embedded waiting sections) -->
       <MonitorTable />
       <ModelsTable />
     </div>
@@ -108,5 +148,51 @@ async function handleLogout() {
   padding: 0.25rem 0.625rem;
   border-radius: 6px;
   border: 1px solid var(--border);
+}
+
+/* KPI bar */
+.kpi-bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.kpi-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.625rem 1.25rem;
+  gap: 0.125rem;
+  flex: 1;
+}
+
+.kpi-divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.kpi-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.kpi-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-value--danger {
+  color: var(--danger);
 }
 </style>
