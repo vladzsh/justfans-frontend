@@ -55,45 +55,54 @@ export function formatWaitDuration(sinceIso: string, nowMs: number): string {
 export interface QueueRow {
   conversation_id: number
   fan_name: string
-  waiting_since: string
+  /** ISO timestamp when the fan started waiting, or null when the chatter has replied. */
+  waiting_since: string | null
   chatter_name: string
-  model_name: string | undefined
-  model_avatar: string | undefined
-  overdue: boolean
+  model_name: string
+  model_avatar: string
+  status: 'overdue' | 'unanswered' | 'ok'
 }
 
-/** Flatten all waiting dialogs across chatters, join model info from models list,
- *  mark overdue, and sort by waiting_since ascending (oldest = most urgent first). */
+const STATUS_ORDER: Record<QueueRow['status'], number> = { overdue: 0, unanswered: 1, ok: 2 }
+
+/** Build the full per-chatter dialog queue from the embedded dialogs[] field.
+ *  Derives a 3-way status from awaiting_reply_since + overdueSeconds.
+ *  Sort: overdue → unanswered → ok; within overdue/unanswered oldest-first;
+ *  within ok alphabetically by fan_name. */
 export function buildOverdueQueue(
   chatters: ChatterStatus[],
-  models: ModelStatus[],
   nowMs: number,
   overdueSeconds: number,
 ): QueueRow[] {
-  const modelByConvId = new Map<number, { name: string; avatar: string }>()
-  for (const model of models) {
-    for (const w of model.waiting) {
-      modelByConvId.set(w.conversation_id, { name: model.name, avatar: model.avatar })
-    }
-  }
-
   const rows: QueueRow[] = []
   for (const chatter of chatters) {
-    for (const dialog of chatter.waiting) {
-      const modelInfo = modelByConvId.get(dialog.conversation_id)
+    for (const dialog of chatter.dialogs) {
+      let status: QueueRow['status']
+      if (dialog.awaiting_reply_since == null) {
+        status = 'ok'
+      } else if (calcIsOverdue(dialog.awaiting_reply_since, nowMs, overdueSeconds)) {
+        status = 'overdue'
+      } else {
+        status = 'unanswered'
+      }
       rows.push({
         conversation_id: dialog.conversation_id,
         fan_name: dialog.fan_name,
-        waiting_since: dialog.waiting_since,
+        waiting_since: dialog.awaiting_reply_since,
         chatter_name: chatter.display_name,
-        model_name: modelInfo?.name,
-        model_avatar: modelInfo?.avatar,
-        overdue: calcIsOverdue(dialog.waiting_since, nowMs, overdueSeconds),
+        model_name: dialog.model_name,
+        model_avatar: dialog.model_avatar,
+        status,
       })
     }
   }
 
-  rows.sort((a, b) => new Date(a.waiting_since).getTime() - new Date(b.waiting_since).getTime())
+  rows.sort((a, b) => {
+    const diff = STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
+    if (diff !== 0) return diff
+    if (a.status === 'ok') return a.fan_name.localeCompare(b.fan_name)
+    return new Date(a.waiting_since!).getTime() - new Date(b.waiting_since!).getTime()
+  })
   return rows
 }
 

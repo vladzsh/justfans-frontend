@@ -25,6 +25,7 @@ function makeChatter(
     last_seen: opts.lastSeenMs != null ? new Date(opts.lastSeenMs).toISOString() : null,
     dialogs_count: opts.dialogs_count ?? 0,
     waiting: opts.waiting ?? [],
+    dialogs: [],
   }
 }
 

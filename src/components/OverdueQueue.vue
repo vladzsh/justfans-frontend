@@ -10,7 +10,6 @@ const authStore = useAuthStore()
 const rows = computed(() =>
   buildOverdueQueue(
     monitorStore.sortedChatters,
-    monitorStore.sortedModels,
     now.value,
     authStore.config.overdue_seconds,
   ),
@@ -19,10 +18,10 @@ const rows = computed(() =>
 
 <template>
   <div class="queue-wrap">
-    <h2 class="queue-title">Очередь ожидания</h2>
+    <h2 class="queue-title">Очередь</h2>
 
     <div v-if="rows.length === 0" class="queue-empty">
-      Очередь пуста
+      Нет диалогов
     </div>
 
     <div v-else class="queue-list">
@@ -30,23 +29,38 @@ const rows = computed(() =>
         v-for="row in rows"
         :key="row.conversation_id"
         class="queue-row"
-        :class="{ 'queue-row--overdue': row.overdue }"
+        :class="{
+          'queue-row--overdue': row.status === 'overdue',
+          'queue-row--unanswered': row.status === 'unanswered',
+          'queue-row--ok': row.status === 'ok',
+        }"
       >
         <div class="queue-left">
+          <span
+            class="status-badge"
+            :class="{
+              'status-badge--overdue': row.status === 'overdue',
+              'status-badge--unanswered': row.status === 'unanswered',
+              'status-badge--ok': row.status === 'ok',
+            }"
+          >
+            <template v-if="row.status === 'overdue'">просрочено</template>
+            <template v-else-if="row.status === 'unanswered'">без ответа</template>
+            <template v-else>ОК</template>
+          </span>
           <span class="queue-fan">{{ row.fan_name }}</span>
           <span class="queue-sep">·</span>
           <span class="queue-chatter">{{ row.chatter_name }}</span>
-          <template v-if="row.model_name">
-            <span class="queue-arrow">→</span>
-            <span class="queue-model">
-              <span v-if="row.model_avatar" class="queue-model-avatar">{{ row.model_avatar }}</span>
-              {{ row.model_name }}
-            </span>
-          </template>
+          <span class="queue-arrow">→</span>
+          <span class="queue-model">
+            <span v-if="row.model_avatar" class="queue-model-avatar">{{ row.model_avatar }}</span>
+            {{ row.model_name }}
+          </span>
         </div>
         <div class="queue-right">
-          <span class="queue-timer">{{ formatWaitDuration(row.waiting_since, now) }}</span>
-          <span v-if="row.overdue" class="overdue-tag">ПРОСРОЧЕНО</span>
+          <span class="queue-timer">
+            {{ row.waiting_since ? formatWaitDuration(row.waiting_since, now) : '—' }}
+          </span>
         </div>
       </div>
     </div>
@@ -115,6 +129,31 @@ const rows = computed(() =>
   flex-wrap: wrap;
 }
 
+.status-badge {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.status-badge--overdue {
+  background: var(--danger);
+  color: #fff;
+}
+
+.status-badge--unanswered {
+  background: var(--warning, #e6a817);
+  color: #fff;
+}
+
+.status-badge--ok {
+  background: var(--success, #2ea44f);
+  color: #fff;
+}
+
 .queue-fan {
   font-weight: 600;
   color: var(--text-primary);
@@ -157,15 +196,5 @@ const rows = computed(() =>
   font-variant-numeric: tabular-nums;
   color: var(--text-secondary);
   font-size: 0.875rem;
-}
-
-.overdue-tag {
-  font-size: 0.6875rem;
-  font-weight: 700;
-  background: var(--danger);
-  color: #fff;
-  padding: 0.125rem 0.375rem;
-  border-radius: 4px;
-  letter-spacing: 0.5px;
 }
 </style>

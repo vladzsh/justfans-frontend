@@ -71,6 +71,15 @@ export interface WaitingDialog {
   waiting_since: string
 }
 
+export interface MonitorDialog {
+  conversation_id: number
+  fan_name: string
+  awaiting_reply_since: string | null
+  model_id: number
+  model_name: string
+  model_avatar: string
+}
+
 export interface ChatterStatus {
   id: number
   display_name: string
@@ -78,6 +87,7 @@ export interface ChatterStatus {
   last_seen: string | null
   dialogs_count: number
   waiting: WaitingDialog[]
+  dialogs: MonitorDialog[]
 }
 
 export interface ModelStatus {

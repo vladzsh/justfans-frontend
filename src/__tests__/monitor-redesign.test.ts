@@ -4,25 +4,38 @@ import {
   buildOverdueQueue,
   formatWaitDuration,
 } from '@/stores/monitor'
-import type { ChatterStatus, ModelStatus } from '@/types/contracts'
+import type { ChatterStatus, ModelStatus, MonitorDialog } from '@/types/contracts'
 
 const NOW = new Date('2026-06-14T12:00:00Z').getTime()
 const ago = (sec: number) => new Date(NOW - sec * 1000).toISOString()
+
+function makeDialog(
+  conversation_id: number,
+  fan_name: string,
+  awaiting_reply_since: string | null,
+  model_id = 1,
+  model_name = 'Stella',
+  model_avatar = '💃',
+): MonitorDialog {
+  return { conversation_id, fan_name, awaiting_reply_since, model_id, model_name, model_avatar }
+}
 
 function chatter(
   id: number,
   connected: boolean,
   lastSeenSecAgo: number,
-  dialogs: number,
+  dialogs_count: number,
   waiting: { conversation_id: number; fan_name: string; waiting_since: string }[],
+  dialogs: MonitorDialog[] = [],
 ): ChatterStatus {
   return {
     id,
     display_name: `Chatter ${id}`,
     connected,
     last_seen: ago(lastSeenSecAgo),
-    dialogs_count: dialogs,
+    dialogs_count,
     waiting,
+    dialogs,
   }
 }
 
@@ -65,38 +78,61 @@ describe('calcMonitorKpis', () => {
 })
 
 describe('buildOverdueQueue', () => {
+  // Dialogs: conv 20 overdue (200s), conv 10 overdue (100s), conv 11 unanswered (30s), conv 30 ok (null)
   const chatters: ChatterStatus[] = [
-    chatter(1, true, 5, 5, [
-      { conversation_id: 10, fan_name: 'A', waiting_since: ago(100) },
-      { conversation_id: 11, fan_name: 'B', waiting_since: ago(30) },
+    chatter(1, true, 5, 5, [], [
+      makeDialog(10, 'A', ago(100), 1, 'Stella', '💃'),
+      makeDialog(11, 'B', ago(30), 2, 'Mia', '🌸'),
+      makeDialog(30, 'D', null, 1, 'Stella', '💃'),
     ]),
-    chatter(2, true, 5, 3, [
-      { conversation_id: 20, fan_name: 'C', waiting_since: ago(200) },
-    ]),
-  ]
-  const models: ModelStatus[] = [
-    model(1, 'Stella', '💃', [{ conversation_id: 10, fan_name: 'A', waiting_since: ago(100) }]),
-    model(2, 'Mia', '🌸', [
-      { conversation_id: 11, fan_name: 'B', waiting_since: ago(30) },
-      { conversation_id: 20, fan_name: 'C', waiting_since: ago(200) },
+    chatter(2, true, 5, 3, [], [
+      makeDialog(20, 'C', ago(200), 2, 'Mia', '🌸'),
     ]),
   ]
 
-  it('flattens waiting dialogs, joins model info, sorts oldest-first, flags overdue', () => {
-    const rows = buildOverdueQueue(chatters, models, NOW, 60)
-    expect(rows.map((r) => r.conversation_id)).toEqual([20, 10, 11])
-    expect(rows.map((r) => r.model_name)).toEqual(['Mia', 'Stella', 'Mia'])
-    expect(rows.map((r) => r.chatter_name)).toEqual(['Chatter 2', 'Chatter 1', 'Chatter 1'])
-    expect(rows.map((r) => r.overdue)).toEqual([true, true, false])
+  it('assigns correct 3-way status per dialog', () => {
+    const rows = buildOverdueQueue(chatters, NOW, 60)
+    const byId = Object.fromEntries(rows.map((r) => [r.conversation_id, r]))
+    expect(byId[20].status).toBe('overdue')
+    expect(byId[10].status).toBe('overdue')
+    expect(byId[11].status).toBe('unanswered')
+    expect(byId[30].status).toBe('ok')
   })
 
-  it('leaves model fields undefined when no model owns the conversation', () => {
-    const orphan = [chatter(3, true, 5, 1, [
-      { conversation_id: 99, fan_name: 'Z', waiting_since: ago(50) },
-    ])]
-    const rows = buildOverdueQueue(orphan, models, NOW, 60)
-    expect(rows[0].model_name).toBeUndefined()
-    expect(rows[0].model_avatar).toBeUndefined()
+  it('sorts overdue→unanswered→ok; within overdue/unanswered oldest-first; within ok by fan_name', () => {
+    const rows = buildOverdueQueue(chatters, NOW, 60)
+    expect(rows.map((r) => r.conversation_id)).toEqual([20, 10, 11, 30])
+  })
+
+  it('carries embedded model info from dialogs[]', () => {
+    const rows = buildOverdueQueue(chatters, NOW, 60)
+    const byId = Object.fromEntries(rows.map((r) => [r.conversation_id, r]))
+    expect(byId[20].model_name).toBe('Mia')
+    expect(byId[10].model_name).toBe('Stella')
+  })
+
+  it('waiting_since is null for ok-status rows', () => {
+    const rows = buildOverdueQueue(chatters, NOW, 60)
+    const ok = rows.find((r) => r.conversation_id === 30)!
+    expect(ok.waiting_since).toBeNull()
+  })
+
+  it('returns empty list when no chatters have any dialogs', () => {
+    const empty = [chatter(1, true, 5, 0, [], [])]
+    const rows = buildOverdueQueue(empty, NOW, 60)
+    expect(rows).toHaveLength(0)
+  })
+
+  it('sorts ok rows alphabetically by fan_name', () => {
+    const chattersOkOnly: ChatterStatus[] = [
+      chatter(1, true, 5, 3, [], [
+        makeDialog(1, 'Zara', null),
+        makeDialog(2, 'Anna', null),
+        makeDialog(3, 'Mike', null),
+      ]),
+    ]
+    const rows = buildOverdueQueue(chattersOkOnly, NOW, 60)
+    expect(rows.map((r) => r.fan_name)).toEqual(['Anna', 'Mike', 'Zara'])
   })
 })
 

@@ -38,6 +38,7 @@ function makeChatter(
     last_seen: new Date(lastSeenMs).toISOString(),
     dialogs_count: 3,
     waiting,
+    dialogs: [],
   }
 }
 
