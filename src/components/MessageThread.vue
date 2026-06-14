@@ -298,7 +298,6 @@ onMounted(() => {
   border-radius: 8px;
   overflow: hidden;
   margin-bottom: 0.5rem;
-  border: 1px solid var(--ppv-border);
   max-width: 220px;
 }
 
