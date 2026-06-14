@@ -2,11 +2,7 @@
 import { computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useMonitorStore, calcMonitorKpis } from '@/stores/monitor'
-import MonitorTable from '@/components/MonitorTable.vue'
-import ModelsTable from '@/components/ModelsTable.vue'
-import OverdueQueue from '@/components/OverdueQueue.vue'
 import WsIndicator from '@/components/WsIndicator.vue'
-import MonitorCharts from '@/components/MonitorCharts.vue'
 import { now } from '@/composables/useTicker'
 
 const authStore = useAuthStore()
@@ -77,15 +73,15 @@ async function handleLogout() {
         </div>
       </div>
 
-      <!-- Charts: visual analytics (pure presentation, no backend needed) -->
-      <MonitorCharts />
+      <!-- Tab navigation -->
+      <nav class="monitor-tabs">
+        <RouterLink class="monitor-tab" :to="{ name: 'monitor-analytics' }">Аналитика</RouterLink>
+        <RouterLink class="monitor-tab" :to="{ name: 'monitor-chatters' }">Чатеры</RouterLink>
+        <RouterLink class="monitor-tab" :to="{ name: 'monitor-queue' }">Очередь</RouterLink>
+      </nav>
 
-      <!-- Unified overdue queue (replaces per-entity waiting card sections) -->
-      <OverdueQueue />
-
-      <!-- Summary tables (without embedded waiting sections) -->
-      <MonitorTable />
-      <ModelsTable />
+      <!-- Active tab -->
+      <RouterView />
     </div>
   </div>
 </template>
@@ -198,5 +194,33 @@ async function handleLogout() {
 
 .kpi-value--danger {
   color: var(--danger);
+}
+
+/* Tab navigation */
+.monitor-tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.monitor-tab {
+  padding: 0.5rem 1rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.monitor-tab:hover {
+  color: var(--text-primary);
+}
+
+.monitor-tab.router-link-active {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent);
 }
 </style>

@@ -3,6 +3,9 @@ import { useAuthStore } from '@/stores/auth'
 import LoginView from '@/views/LoginView.vue'
 import ChatView from '@/views/ChatView.vue'
 import MonitorView from '@/views/MonitorView.vue'
+import OverdueQueue from '@/components/OverdueQueue.vue'
+import MonitorCharts from '@/components/MonitorCharts.vue'
+import MonitorTable from '@/components/MonitorTable.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -20,9 +23,14 @@ const router = createRouter({
     },
     {
       path: '/monitor',
-      name: 'monitor',
       component: MonitorView,
       meta: { requiresAuth: true, role: 'teamlead' },
+      children: [
+        { path: '', redirect: { name: 'monitor-queue' } },
+        { path: 'queue', name: 'monitor-queue', component: OverdueQueue },
+        { path: 'analytics', name: 'monitor-analytics', component: MonitorCharts },
+        { path: 'chatters', name: 'monitor-chatters', component: MonitorTable },
+      ],
     },
     {
       path: '/',
